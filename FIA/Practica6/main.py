@@ -8,7 +8,6 @@ from pyswip import Prolog
 prolog = Prolog()
 prolog.consult('taxonomy.pl')
 
-
 # Definición de funciones
 def set_image(path):
     """Configura la imagen a mostrar en el panel."""
@@ -18,31 +17,28 @@ def set_image(path):
     panel.config(image=img)
     panel.image = img
 
-
-def show_image(event):
-    """Muestra la imagen del animal seleccionado."""
+def show_image_and_properties(event):
+    """Muestra la imagen y propiedades del animal seleccionado."""
     selection = listbox.curselection()
     if selection:
         selected_animal = listbox.get(selection[0])
-        img_path = next(prolog.query(f"frame({selected_animal}, _, Path)"))['Path']
-        img_path = img_path[img_path.find('(') + 1:img_path.find(')')]
+        img_path = list(prolog.query(f"frame({selected_animal}, _, _, imagen(Path))"))[0]['Path']
+        properties = list(prolog.query(f"frame({selected_animal}, _, Propiedades, _)"))[0]['Propiedades']
+
         set_image('img/' + img_path)
 
+        properties_list.delete(0, tk.END)
+        for property in properties:
+            properties_list.insert(tk.END, property)
 
 def query_prolog():
+    """Realiza una consulta a la base de conocimientos Prolog."""
     # Obtener el término de búsqueda ingresado por el usuario
     input_str = entry.get()
 
     try:
-        # Extraer la propiedad de búsqueda del término de búsqueda
-        colon_idx = input_str.find(':')
-        if colon_idx == -1:
-            raise ValueError(f"No se especificó la propiedad de búsqueda en '{input_str}'")
-        search_prop = input_str[:colon_idx]
-        search_term = input_str[colon_idx+1:].strip()
-
-        # Construir la consulta de Prolog
-        query_str = f"frame(Animal, _, properties(ListaPropiedades), imagen(Path)), member({search_prop}('{search_term}'), ListaPropiedades)"
+        # Preparar la consulta Prolog para buscar animales que cumplan con el término de búsqueda
+        query_str = f"frame(Animal, _, Propiedades, _), member({input_str}, Propiedades)"
         query = prolog.query(query_str)
         results = list(query)
 
@@ -51,11 +47,6 @@ def query_prolog():
         for result in results:
             result_animal = result['Animal']
             listbox.insert(tk.END, result_animal)
-
-            # Si la consulta incluye la propiedad 'imagen', mostramos la imagen correspondiente
-            img_path = result['Path']
-            img_path = img_path[img_path.find('(') + 1:img_path.find(')')]
-            set_image('img/' + img_path)
 
         # Mostrar un mensaje de error si no se encontraron resultados
         if len(results) == 0:
@@ -66,16 +57,13 @@ def query_prolog():
         print(error)
         messagebox.showerror("Error", error)
 
-
-
 def list_all():
     """Lista todos los animales en la base de datos Prolog."""
     listbox.delete(0, tk.END)
-    animals = list(prolog.query("frame(Animal, _, Image)"))
+    animals = list(prolog.query("frame(Animal, _, _, _)"))
     for animal in animals:
         listbox.insert(tk.END, animal['Animal'])
-    listbox.bind('<<ListboxSelect>>', show_image)
-
+    listbox.bind('<<ListboxSelect>>', show_image_and_properties)
 
 # Configuración de la interfaz gráfica
 root = tk.Tk()
@@ -84,6 +72,7 @@ button = tk.Button(root, text="Consultar", command=query_prolog)
 list_button = tk.Button(root, text="Listar todos", command=list_all)
 listbox = tk.Listbox(root)
 panel = tk.Label(root)
+properties_list = tk.Listbox(root)  # Nuevo Listbox para mostrar las propiedades
 
 # Llamar a la función list_all al iniciar
 list_all()
@@ -94,6 +83,7 @@ button.grid(row=0, column=1, sticky="W")
 list_button.grid(row=0, column=2, sticky="W")
 listbox.grid(row=1, column=0, rowspan=2, sticky="NS")
 panel.grid(row=1, column=1, rowspan=2, padx=10, pady=10)
+properties_list.grid(row=1, column=2, rowspan=2, padx=10, pady=10, sticky="NS")
 
 # Ajustamos el tamaño de las columnas y filas
 root.columnconfigure(0, weight=1)
